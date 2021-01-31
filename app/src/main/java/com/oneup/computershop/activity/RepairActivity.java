@@ -13,22 +13,16 @@ import android.widget.RadioGroup;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.JsonArrayRequest;
-import com.android.volley.toolbox.JsonObjectRequest;
-import com.android.volley.toolbox.JsonRequest;
-import com.android.volley.toolbox.StringRequest;
-import com.android.volley.toolbox.Volley;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.gcm.GcmNetworkManager;
+import com.google.android.gms.gcm.OneoffTask;
+import com.google.android.gms.gcm.Task;
+import com.oneup.computershop.NetworkService;
 import com.oneup.computershop.R;
 import com.oneup.computershop.Util;
 import com.oneup.computershop.db.DbHelper;
 import com.oneup.computershop.db.Repair;
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 public class RepairActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String TAG = "ComputerShop";
@@ -68,13 +62,17 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
         bEndDate.setOnClickListener(this);
 
         rgStatus = findViewById(R.id.rgStatus);
+        rbStatusBusy = findViewById(R.id.rbStatusBusy);
+        rbStatusDone = findViewById(R.id.rbStatusDone);
 
         etDescription = findViewById(R.id.etDescription);
 
         bOk = findViewById(R.id.bOk);
         bOk.setOnClickListener(this);
 
-        if (repair != null) {
+        if (repair == null) {
+            rbStatusBusy.setChecked(true);
+        } else {
             if (repair.getStartDate() != 0) {
                 setDate(bStartDate, repair.getStartDate());
             }
@@ -162,59 +160,42 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
 
     private void ok() {
         repair.setDescription(etDescription.getText().toString());
-
-        try {
-            t();
-        } catch (Exception ex) {
-            Log.e(TAG, "Error", ex);
+        int status = rgStatus.getCheckedRadioButtonId();
+        if (status == R.id.rbStatusBusy) {
+            repair.setStatus(Repair.STATUS_BUSY);
+        } else if (status == R.id.rbStatusDone) {
+            repair.setStatus(Repair.STATUS_DONE);
         }
+
+        boolean insert = repair.getId() == 0;
         new DbHelper(this).insertOrUpdateRepair(repair);
+        scheduleTask(insert);
 
         setResult(RESULT_OK);
         finish();
     }
 
-    private void t() throws JSONException {
-        JSONObject jsonRequest = new JSONObject();
-        jsonRequest.put("ID", repair.getId());
-        jsonRequest.put("StartDate", repair.getStartDate());
-        jsonRequest.put("EndDate", repair.getEndDate());
-        jsonRequest.put("Status", repair.getStatus());
-        jsonRequest.put("Description", repair.getDescription());
+    private void scheduleTask(boolean insert) {
+        Bundle extras = new Bundle();
+        extras.putLong(NetworkService.EXTRA_REPAIR_ID, repair.getId());
+        extras.putBoolean(NetworkService.EXTRA_INSERT, insert);
+        GcmNetworkManager.getInstance(this).schedule(
+                new OneoffTask.Builder()
+                        .setService(NetworkService.class)
+                        .setTag(TAG)
+                        .setExecutionWindow(1000, 2000)
+                        .setRequiredNetwork(Task.NETWORK_STATE_CONNECTED)
+                        .setRequiresCharging(false)
+                        //.setPersisted(true)
+                        .setUpdateCurrent(true)
+                       // .setExtras(extras)
+                        .build());
+        Log.d(TAG, "Task scheduled");
 
-        RequestQueue requestQueue = Volley.newRequestQueue(this);
-        if (repair.getId() == 0) {
-            Log.d(TAG, "inserting");
-            requestQueue.add(new JsonObjectRequest(Request.Method.POST,
-                    "http://192.168.2.202:8080/api/repairs/", jsonRequest,
-                    new Response.Listener<JSONObject>() {
-                        @Override
-                        public void onResponse(JSONObject response) {
-                            Log.d(TAG, "response: " + response);
-                        }
-                    },
-                    new Response.ErrorListener() {
-                        @Override
-                        public void onErrorResponse(VolleyError error) {
-                            Log.e(TAG, "Error", error);
-                        }
-                    }));
-        } else {
-            Log.d(TAG, "updating");
-            requestQueue.add(new JsonObjectRequest(Request.Method.PUT,
-                    "http://192.168.2.202:8080/api/repairs/" + repair.getId(), jsonRequest,
-                    new Response.Listener<JSONObject>() {
-                        @Override
-                        public void onResponse(JSONObject response) {
-                            Log.d(TAG, "response: " + response);
-                        }
-                    },
-                    new Response.ErrorListener() {
-                        @Override
-                        public void onErrorResponse(VolleyError error) {
-                            Log.e(TAG, "Error", error);
-                        }
-                    }));
+        try {
+            NetworkService.addRequest(this, repair, insert);
+        } catch (Exception ex) {
+            Log.e(TAG, "Error", ex);
         }
     }
 }

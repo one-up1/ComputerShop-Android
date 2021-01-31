@@ -27,6 +27,7 @@ import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.oneup.computershop.R;
+import com.oneup.computershop.Util;
 import com.oneup.computershop.db.DbHelper;
 import com.oneup.computershop.db.Repair;
 
@@ -191,8 +192,44 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 view = getLayoutInflater().inflate(R.layout.list_item_repair, parent, false);
             }
 
-            Log.d(TAG, "repair: " + repair.getId());
-            ((TextView)view).setText(repair.getDescription());
+            TextView tvStartDate = view.findViewById(R.id.tvStartDate);
+            if (repair.getStartDate() == 0) {
+                tvStartDate.setVisibility(View.GONE);
+            } else {
+                tvStartDate.setText(Util.formatDate(repair.getStartDate()));
+                tvStartDate.setVisibility(View.VISIBLE);
+            }
+
+            TextView tvEndDate = view.findViewById(R.id.tvEndDate);
+            if (repair.getEndDate() == 0) {
+                tvEndDate.setVisibility(View.GONE);
+            } else {
+                tvEndDate.setText(Util.formatDate(repair.getEndDate()));
+                tvEndDate.setVisibility(View.VISIBLE);
+            }
+
+            TextView tvStatus = view.findViewById(R.id.tvStatus);
+            switch (repair.getStatus()) {
+                case Repair.STATUS_BUSY:
+                    tvStatus.setText(R.string.busy);
+                    tvStatus.setVisibility(View.VISIBLE);
+                    break;
+                case Repair.STATUS_DONE:
+                    tvStatus.setText(R.string.done);
+                    tvStatus.setVisibility(View.VISIBLE);
+                    break;
+                default:
+                    tvStatus.setVisibility(View.GONE);
+                    break;
+            }
+
+            TextView tvDescription = view.findViewById(R.id.tvDescription);
+            if (repair.getDescription() == null) {
+                tvDescription.setVisibility(View.GONE);
+            } else {
+                tvDescription.setText(repair.getDescription());
+                tvDescription.setVisibility(View.VISIBLE);
+            }
 
             return view;
         }

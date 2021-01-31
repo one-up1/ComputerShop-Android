@@ -48,13 +48,28 @@ public class DbHelper extends SQLiteOpenHelper {
     public ArrayList<Repair> queryRepairs() {
         Log.d(TAG, "DbHelper.queryRepairs()");
         try (SQLiteDatabase db = getReadableDatabase()) {
-            try (Cursor c = db.query(TABLE_REPAIRS, null, null, null, null, null, null)) {
+            try (Cursor c = db.query(TABLE_REPAIRS, null, null, null, null, null,
+                    Repair.START_DATE + " DESC")) {
                 ArrayList<Repair> repairs = new ArrayList<>();
                 while (c.moveToNext()) {
                     repairs.add(new Repair(c));
                 }
                 Log.d(TAG, repairs.size() + " repairs queried");
                 return repairs;
+            }
+        }
+    }
+
+    public Repair queryRepair(long id) {
+        Log.d(TAG, "DbHelper.queryRepair(" + id + ")");
+        try (SQLiteDatabase db = getReadableDatabase()) {
+            try (Cursor c = db.query(TABLE_REPAIRS, null,
+                    Repair.ID + "=" + id, null, null, null, null)) {
+                if (c.moveToFirst()) {
+                    return new Repair(c);
+                } else {
+                    throw new SQLiteException("Repair not found: " + id);
+                }
             }
         }
     }
