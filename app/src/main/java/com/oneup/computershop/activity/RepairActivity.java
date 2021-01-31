@@ -1,7 +1,11 @@
 package com.oneup.computershop.activity;
 
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -176,10 +180,10 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
     }
 
     private void scheduleTask(boolean insert) {
-        Bundle extras = new Bundle();
+        PersistableBundle extras = new PersistableBundle();
         extras.putLong(NetworkService.EXTRA_REPAIR_ID, repair.getId());
         extras.putBoolean(NetworkService.EXTRA_INSERT, insert);
-        GcmNetworkManager.getInstance(this).schedule(
+        /*GcmNetworkManager.getInstance(this).schedule(
                 new OneoffTask.Builder()
                         .setService(NetworkService.class)
                         .setTag(TAG)
@@ -189,13 +193,18 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
                         //.setPersisted(true)
                         .setUpdateCurrent(true)
                        // .setExtras(extras)
-                        .build());
-        Log.d(TAG, "Task scheduled");
+                        .build());*/
 
-        try {
-            NetworkService.addRequest(this, repair, insert);
-        } catch (Exception ex) {
-            Log.e(TAG, "Error", ex);
-        }
+        ComponentName serviceComponent = new ComponentName(this, NetworkService.class);
+        JobInfo.Builder builder = new JobInfo.Builder(0, serviceComponent);
+        builder.setMinimumLatency(1000); // wait at least
+        builder.setOverrideDeadline(3000); // maximum delay
+        builder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED); // require unmetered network
+        //builder.setRequiresDeviceIdle(true); // device should be idle
+        builder.setRequiresCharging(false); // we don't care if the device is charging or not
+        builder.setExtras(extras);
+        JobScheduler jobScheduler = getSystemService(JobScheduler.class);
+        jobScheduler.schedule(builder.build());
+        Log.d(TAG, "Scheduled");
     }
 }

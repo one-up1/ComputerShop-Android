@@ -1,5 +1,7 @@
 package com.oneup.computershop;
 
+import android.app.job.JobParameters;
+import android.app.job.JobService;
 import android.content.Context;
 import android.util.Log;
 
@@ -18,31 +20,32 @@ import com.oneup.computershop.db.Repair;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class NetworkService extends GcmTaskService {
+public class NetworkService extends JobService {
     private static final String TAG = "ComputerShop";
 
     public static final String EXTRA_REPAIR_ID = "com.oneup.extra.REPAIR_ID";
     public static final String EXTRA_INSERT = "com.oneup.extra.INSERT";
 
-    public NetworkService() {
-        Log.d(TAG, "construct");
+    @Override
+    public boolean onStartJob(JobParameters params) {
+        Log.d(TAG, "NetworkService.onStartJob()");
+        try {
+            addRequest(new DbHelper(this).queryRepair(
+                    params.getExtras().getLong(EXTRA_REPAIR_ID)),
+                    params.getExtras().getBoolean(EXTRA_INSERT, false));
+        } catch (Exception ex) {
+            Log.e(TAG, "Error", ex);
+        }
+        return true;
     }
 
     @Override
-    public int onRunTask(TaskParams taskParams) {
-        Log.d(TAG, "NetworkService.onRunTask()");
-        try {
-            addRequest(this, new DbHelper(this).queryRepair(
-                    taskParams.getExtras().getLong(EXTRA_REPAIR_ID)),
-                    taskParams.getExtras().getBoolean(EXTRA_INSERT, false));
-            return GcmNetworkManager.RESULT_SUCCESS;
-        } catch (Exception ex) {
-            Log.e(TAG, "Error", ex);
-            return GcmNetworkManager.RESULT_RESCHEDULE;
-        }
+    public boolean onStopJob(JobParameters params) {
+        Log.d(TAG, "NetworkService.onStopJob()");
+        return true;
     }
 
-    public static void addRequest(Context context, Repair repair, boolean insert) throws JSONException {
+    public void addRequest(Repair repair, boolean insert) throws JSONException {
         Log.d(TAG, "NetworkService.addRequest(" + repair.getId() + ", " + insert + ")");
         JSONObject jsonRequest = new JSONObject();
         jsonRequest.put("ID", repair.getId());
@@ -51,7 +54,7 @@ public class NetworkService extends GcmTaskService {
         jsonRequest.put("Status", repair.getStatus());
         jsonRequest.put("Description", repair.getDescription());
 
-        RequestQueue requestQueue = Volley.newRequestQueue(context);
+        RequestQueue requestQueue = Volley.newRequestQueue(this);
         if (insert) {
             Log.d(TAG, "Inserting");
             requestQueue.add(new JsonObjectRequest(Request.Method.POST,
