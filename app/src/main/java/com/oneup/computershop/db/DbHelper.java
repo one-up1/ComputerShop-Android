@@ -18,6 +18,11 @@ import java.util.ArrayList;
 public class DbHelper extends SQLiteOpenHelper {
     private static final String TAG = "ComputerShop";
 
+    public static final String PENDING = "pending";
+    public static final int PENDING_INSERT = 1;
+    public static final int PENDING_UPDATE = 2;
+    public static final int PENDING_DELETE = 3;
+
     private static final String DATABASE_NAME = "UPlayer.db";
     private static final int DATABASE_VERSION = 1;
 
@@ -29,7 +34,9 @@ public class DbHelper extends SQLiteOpenHelper {
                     Repair.START_DATE + " INTEGER," +
                     Repair.END_DATE + " INTEGER," +
                     Repair.STATUS + " INTEGER," +
-                    Repair.DESCRIPTION + " TEXT)";
+                    Repair.DESCRIPTION + " TEXT," +
+                    PENDING + " INTEGER)";
+
 
     public DbHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -48,8 +55,9 @@ public class DbHelper extends SQLiteOpenHelper {
     public ArrayList<Repair> queryRepairs() {
         Log.d(TAG, "DbHelper.queryRepairs()");
         try (SQLiteDatabase db = getReadableDatabase()) {
-            try (Cursor c = db.query(TABLE_REPAIRS, null, null, null, null, null,
-                    Repair.START_DATE + " DESC")) {
+            try (Cursor c = db.query(TABLE_REPAIRS, null,
+                    PENDING + "!=" + PENDING_DELETE, null,
+                    null, null, Repair.START_DATE + " DESC")) {
                 ArrayList<Repair> repairs = new ArrayList<>();
                 while (c.moveToNext()) {
                     repairs.add(new Repair(c));
@@ -75,32 +83,49 @@ public class DbHelper extends SQLiteOpenHelper {
     }
 
     public void insertOrUpdateRepair(Repair repair) {
-        Log.d(TAG, "DbHelper.insertOrUpdateRepair(" + repair.id + ")");
+        Log.d(TAG, "DbHelper.insertOrUpdateRepair(" + repair.getId() + ")");
         try (SQLiteDatabase db = getWritableDatabase()) {
-            ContentValues values = new ContentValues();
-            values.put(Repair.START_DATE, repair.getStartDate());
-            values.put(Repair.END_DATE, repair.getEndDate());
-            values.put(Repair.STATUS, repair.getStatus());
-            values.put(Repair.DESCRIPTION, repair.getDescription());
+            ContentValues values = repair.getValues();
 
-            if (repair.id == 0) {
-                repair.id = db.insert(TABLE_REPAIRS, null, values);
-                Log.d(TAG, "Repair inserted: " + repair.id);
-            } else if (db.update(TABLE_REPAIRS, values, Repair.ID + "=" + repair.id, null) == 1) {
-                Log.d(TAG, "Repair updated: " + repair.id);
+            if (repair.getId() == 0) {
+                values.put(PENDING, PENDING_INSERT);
+                repair.setId(db.insert(TABLE_REPAIRS, null, values));
+                Log.d(TAG, "Repair inserted: " + repair.getId());
             } else {
-                throw new SQLiteException("Repair not found: " + repair.id);
+                values.put(PENDING, PENDING_UPDATE);
+                if (db.update(TABLE_REPAIRS, values, repair.getWhereClause(), null) == 1) {
+                    Log.d(TAG, "Repair updated: " + repair.getId());
+                } else {
+                    throw new SQLiteException("Repair not found: " + repair.getId());
+                }
             }
         }
     }
 
     public void deleteRepair(Repair repair) {
-        Log.d(TAG, "DbHelper.deleteRepair(" + repair.id + ")");
+        Log.d(TAG, "DbHelper.deleteRepair(" + repair.getId() + ")");
         try (SQLiteDatabase db = getWritableDatabase()) {
-            if (db.delete(TABLE_REPAIRS, Repair.ID + "=" + repair.id, null) == 1) {
-                Log.d(TAG, "Repair deleted: " + repair.id);
+            ContentValues values = new ContentValues();
+            values.put(PENDING, PENDING_DELETE);
+
+            if (db.update(TABLE_REPAIRS, values, repair.getWhereClause(), null) == 1) {
+                Log.d(TAG, "Repair scheduled for deletion: " + repair.getId());
             } else {
-                throw new SQLiteException("Repair not found: " + repair.id);
+                throw new SQLiteException("Repair not found: " + repair.getId());
+            }
+        }
+    }
+
+    public void resetRepairPending(Repair repair) {
+        Log.d(TAG, "DbHelper.setRepairPending(" + repair.getId() + ")");
+        try (SQLiteDatabase db = getWritableDatabase()) {
+            ContentValues values = new ContentValues();
+            values.putNull(PENDING);
+
+            if (db.update(TABLE_REPAIRS, values, repair.getWhereClause(), null) == 1) {
+                Log.d(TAG, "Repair updated: " + repair.getId());
+            } else {
+                throw new SQLiteException("Repair not found: " + repair.getId());
             }
         }
     }
@@ -108,7 +133,7 @@ public class DbHelper extends SQLiteOpenHelper {
     public void setRepairs(JSONArray repairs) throws JSONException {
         Log.d(TAG, "DbHelper.setRepairs()");
         try (SQLiteDatabase db = getWritableDatabase()) {
-            Log.d(TAG, db.delete(TABLE_REPAIRS, null, null) + " repairs deleted");
+            Log.d(TAG, db.delete(TABLE_REPAIRS, PENDING + " IS NULL", null) + " repairs deleted");
 
             for (int i = 0; i < repairs.length(); i++) {
                 JSONObject repair = repairs.getJSONObject(i);
@@ -118,8 +143,8 @@ public class DbHelper extends SQLiteOpenHelper {
                 values.put(Repair.END_DATE, repair.getLong("EndDate"));
                 values.put(Repair.STATUS, repair.getInt("Status"));
                 values.put(Repair.DESCRIPTION, repair.getString("Description"));
-                db.insert(TABLE_REPAIRS, null, values);
 
+                db.insert(TABLE_REPAIRS, null, values);
                 Log.d(TAG, "Repair inserted: " + repair);
             }
         }

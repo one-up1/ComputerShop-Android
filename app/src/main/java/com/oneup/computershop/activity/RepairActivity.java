@@ -1,12 +1,7 @@
 package com.oneup.computershop.activity;
 
-import android.app.job.JobInfo;
-import android.app.job.JobScheduler;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.PersistableBundle;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -17,16 +12,11 @@ import android.widget.RadioGroup;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.android.gms.common.GoogleApiAvailability;
-import com.google.android.gms.common.GooglePlayServicesUtil;
-import com.google.android.gms.gcm.GcmNetworkManager;
-import com.google.android.gms.gcm.OneoffTask;
-import com.google.android.gms.gcm.Task;
-import com.oneup.computershop.NetworkService;
 import com.oneup.computershop.R;
 import com.oneup.computershop.Util;
 import com.oneup.computershop.db.DbHelper;
 import com.oneup.computershop.db.Repair;
+import com.oneup.computershop.db.Server;
 
 public class RepairActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String TAG = "ComputerShop";
@@ -173,38 +163,13 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
 
         boolean insert = repair.getId() == 0;
         new DbHelper(this).insertOrUpdateRepair(repair);
-        scheduleTask(insert);
+        if (insert) {
+            Server.get(this).insertRepair(repair);
+        } else {
+            Server.get(this).updateRepair(repair);
+        }
 
         setResult(RESULT_OK);
         finish();
-    }
-
-    private void scheduleTask(boolean insert) {
-        PersistableBundle extras = new PersistableBundle();
-        extras.putLong(NetworkService.EXTRA_REPAIR_ID, repair.getId());
-        extras.putBoolean(NetworkService.EXTRA_INSERT, insert);
-        /*GcmNetworkManager.getInstance(this).schedule(
-                new OneoffTask.Builder()
-                        .setService(NetworkService.class)
-                        .setTag(TAG)
-                        .setExecutionWindow(1000, 2000)
-                        .setRequiredNetwork(Task.NETWORK_STATE_CONNECTED)
-                        .setRequiresCharging(false)
-                        //.setPersisted(true)
-                        .setUpdateCurrent(true)
-                       // .setExtras(extras)
-                        .build());*/
-
-        ComponentName serviceComponent = new ComponentName(this, NetworkService.class);
-        JobInfo.Builder builder = new JobInfo.Builder(0, serviceComponent);
-        builder.setMinimumLatency(1000); // wait at least
-        builder.setOverrideDeadline(3000); // maximum delay
-        builder.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED); // require unmetered network
-        //builder.setRequiresDeviceIdle(true); // device should be idle
-        builder.setRequiresCharging(false); // we don't care if the device is charging or not
-        builder.setExtras(extras);
-        JobScheduler jobScheduler = getSystemService(JobScheduler.class);
-        jobScheduler.schedule(builder.build());
-        Log.d(TAG, "Scheduled");
     }
 }

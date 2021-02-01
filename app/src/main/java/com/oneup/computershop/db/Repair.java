@@ -1,8 +1,12 @@
 package com.oneup.computershop.db;
 
+import android.content.ContentValues;
 import android.database.Cursor;
 import android.os.Parcel;
 import android.os.Parcelable;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class Repair implements Parcelable {
     public static final String EXTRA_REPAIR = "com.oneup.extra.REPAIR";
@@ -16,7 +20,7 @@ public class Repair implements Parcelable {
     static final String STATUS = "status";
     static final String DESCRIPTION = "description";
 
-    long id;
+    private long id;
     private long startDate;
     private long endDate;
     private int status;
@@ -51,6 +55,10 @@ public class Repair implements Parcelable {
         return id;
     }
 
+    public void setId(long id) {
+        this.id = id;
+    }
+
     public long getStartDate() {
         return startDate;
     }
@@ -81,6 +89,29 @@ public class Repair implements Parcelable {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    ContentValues getValues() {
+        ContentValues values = new ContentValues();
+        values.put(Repair.START_DATE, startDate);
+        values.put(Repair.END_DATE, endDate);
+        values.put(Repair.STATUS, status);
+        values.put(Repair.DESCRIPTION, description);
+        return values;
+    }
+
+    JSONObject getJsonObject() throws JSONException {
+        JSONObject json = new JSONObject();
+        json.put("ID", id);
+        json.put("StartDate", startDate);
+        json.put("EndDate", endDate);
+        json.put("Status", status);
+        json.put("Description", description);
+        return json;
+    }
+
+    String getWhereClause() {
+        return ID + "=" + id;
     }
 
     public static final Parcelable.Creator<?> CREATOR = new Parcelable.Creator<Repair>() {

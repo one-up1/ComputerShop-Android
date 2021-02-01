@@ -1,9 +1,5 @@
 package com.oneup.computershop.activity;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -13,26 +9,23 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
-import android.widget.ListAdapter;
 import android.widget.ListView;
-import android.widget.SimpleAdapter;
 import android.widget.TextView;
 
-import com.android.volley.Request;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.JsonArrayRequest;
-import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.oneup.computershop.R;
 import com.oneup.computershop.Util;
 import com.oneup.computershop.db.DbHelper;
 import com.oneup.computershop.db.Repair;
+import com.oneup.computershop.db.Server;
 
 import org.json.JSONArray;
-import org.json.JSONObject;
 
 import java.util.ArrayList;
 
@@ -66,31 +59,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         fabAddRepair = findViewById(R.id.fabAddRepair);
         fabAddRepair.setOnClickListener(this);
 
-        Log.d(TAG, "posting");
-        RequestQueue requestQueue = Volley.newRequestQueue(this);
-        requestQueue.add(new JsonArrayRequest("http://192.168.2.202:8080/api/repairs",
-                new Response.Listener<JSONArray>() {
+        Server.get(this).getRepairs(new Response.Listener<JSONArray>() {
 
-                    @Override
-                    public void onResponse(JSONArray response) {
-                        Log.d(TAG, "onResponse: " + response);
-                        try {
-                            dbHelper.setRepairs(response);
+            @Override
+            public void onResponse(JSONArray response) {
+                Log.d(TAG, "onResponse: " + response);
+                try {
+                    dbHelper.setRepairs(response);
 
-                            repairs = dbHelper.queryRepairs();
-                            repairAdapter.notifyDataSetChanged();
-                        } catch (Exception ex) {
-                            Log.e(TAG, "Error", ex);
-                        }
-                    }
-                },
-                new Response.ErrorListener() {
-
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        Log.e(TAG, "onErrorResponse", error);
-                    }
-                }));
+                    repairs = dbHelper.queryRepairs();
+                    repairAdapter.notifyDataSetChanged();
+                } catch (Exception ex) {
+                    Log.e(TAG, "Error", ex);
+                }
+            }
+        });
     }
 
     @Override
@@ -125,21 +108,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             repairs.remove(index);
             repairAdapter.notifyDataSetChanged();
 
-            Log.d(TAG, "Deleting");
-            requestQueue.add(new JsonObjectRequest(Request.Method.DELETE,
-                    "http://192.168.2.202:8080/api/repairs/" + repair.getId(), new JSONObject(),
-                    new Response.Listener<JSONObject>() {
-                        @Override
-                        public void onResponse(JSONObject response) {
-                            Log.d(TAG, "response: " + response);
-                        }
-                    },
-                    new Response.ErrorListener() {
-                        @Override
-                        public void onErrorResponse(VolleyError error) {
-                            Log.e(TAG, "Error", error);
-                        }
-                    }));
+            Server.get(this).deleteRepair(repair);
         } else {
             return super.onContextItemSelected(item);
         }
