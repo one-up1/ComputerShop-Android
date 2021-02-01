@@ -47,15 +47,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         fabAddRepair = findViewById(R.id.fabAddRepair);
         fabAddRepair.setOnClickListener(this);
-
-        db.sync(new Runnable() {
-
-            @Override
-            public void run() {
-                repairs = db.queryRepairs();
-                repairAdapter.notifyDataSetChanged();
-            }
-        });
     }
 
     @Override
@@ -69,6 +60,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         } else {
             repairAdapter.notifyDataSetChanged();
         }
+        sync();
     }
 
     @Override
@@ -89,6 +81,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             db.deleteRepair(repair);
             repairs.remove(index);
             repairAdapter.notifyDataSetChanged();
+            sync();
         } else {
             return super.onContextItemSelected(item);
         }
@@ -113,6 +106,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             intent.putExtra(Repair.EXTRA_REPAIR, repair);
         }
         startActivityForResult(intent, REQUEST_EDIT_REPAIR);
+    }
+
+    private void sync() {
+        db.sync(new Runnable() {
+
+            @Override
+            public void run() {
+                repairs = db.queryRepairs();
+                repairAdapter.notifyDataSetChanged();
+            }
+        });
     }
 
     private class RepairAdapter extends BaseAdapter {

@@ -14,17 +14,23 @@ public class Repair implements Parcelable {
     public static final int STATUS_BUSY = 1;
     public static final int STATUS_DONE = 2;
 
+    static final int PENDING_INSERT = 1;
+    static final int PENDING_UPDATE = 2;
+    static final int PENDING_DELETE = 3;
+
     static final String ID = "id";
     static final String START_DATE = "start_date";
     static final String END_DATE = "end_date";
     static final String STATUS = "status";
     static final String DESCRIPTION = "description";
+    static final String PENDING = "pending";
 
     private long id;
     private long startDate;
     private long endDate;
     private int status;
     private String description;
+    private int pending;
 
     public Repair() {
     }
@@ -35,6 +41,7 @@ public class Repair implements Parcelable {
         this.endDate = c.getLong(2);
         this.status = c.getInt(3);
         this.description = c.getString(4);
+        this.pending = c.getInt(5);
     }
 
     @Override
@@ -49,6 +56,7 @@ public class Repair implements Parcelable {
         out.writeLong(endDate);
         out.writeInt(status);
         out.writeString(description);
+        out.writeInt(pending);
     }
 
     public long getId() {
@@ -91,6 +99,10 @@ public class Repair implements Parcelable {
         this.description = description;
     }
 
+    public int getPending() {
+        return pending;
+    }
+
     ContentValues getValues() {
         ContentValues values = new ContentValues();
         values.put(Repair.START_DATE, startDate);
@@ -128,6 +140,7 @@ public class Repair implements Parcelable {
             repair.endDate = source.readLong();
             repair.status = source.readInt();
             repair.description = source.readString();
+            repair.pending = source.readInt();
             return repair;
         }
 

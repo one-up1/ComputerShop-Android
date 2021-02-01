@@ -47,10 +47,6 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
             repair = savedInstanceState.getParcelable(Repair.EXTRA_REPAIR);
         }
 
-        if (repair == null) {
-            repair = new Repair();
-        }
-
         bStartDate = findViewById(R.id.bStartDate);
         bStartDate.setOnClickListener(this);
 
@@ -67,6 +63,7 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
         bOk.setOnClickListener(this);
 
         if (repair == null) {
+            repair = new Repair();
             rbStatusBusy.setChecked(true);
         } else {
             if (repair.getStartDate() != 0) {
