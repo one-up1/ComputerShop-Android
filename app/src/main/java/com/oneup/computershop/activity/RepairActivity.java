@@ -16,7 +16,6 @@ import com.oneup.computershop.R;
 import com.oneup.computershop.Util;
 import com.oneup.computershop.db.DbHelper;
 import com.oneup.computershop.db.Repair;
-import com.oneup.computershop.db.Server;
 
 public class RepairActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String TAG = "ComputerShop";
@@ -24,6 +23,7 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
     private static final int REQUEST_SELECT_START_DATE = 1;
     private static final int REQUEST_SELECT_END_DATE = 2;
 
+    private DbHelper db;
     private Repair repair;
 
     private Button bStartDate;
@@ -38,6 +38,8 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_repair);
+
+        db = new DbHelper(this);
 
         if (savedInstanceState == null) {
             repair = getIntent().getParcelableExtra(Repair.EXTRA_REPAIR);
@@ -160,14 +162,7 @@ public class RepairActivity extends AppCompatActivity implements View.OnClickLis
         } else if (status == R.id.rbStatusDone) {
             repair.setStatus(Repair.STATUS_DONE);
         }
-
-        boolean insert = repair.getId() == 0;
-        new DbHelper(this).insertOrUpdateRepair(repair);
-        if (insert) {
-            Server.get(this).insertRepair(repair);
-        } else {
-            Server.get(this).updateRepair(repair);
-        }
+        db.insertOrUpdateRepair(repair);
 
         setResult(RESULT_OK);
         finish();

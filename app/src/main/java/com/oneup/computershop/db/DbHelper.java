@@ -8,25 +8,33 @@ import android.database.sqlite.SQLiteException;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonArrayRequest;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.sql.SQLInput;
 import java.util.ArrayList;
 
 public class DbHelper extends SQLiteOpenHelper {
     private static final String TAG = "ComputerShop";
 
-    public static final String PENDING = "pending";
-    public static final int PENDING_INSERT = 1;
-    public static final int PENDING_UPDATE = 2;
-    public static final int PENDING_DELETE = 3;
-
     private static final String DATABASE_NAME = "UPlayer.db";
     private static final int DATABASE_VERSION = 1;
 
     private static final String TABLE_REPAIRS = "repairs";
+
+    private static final String SERVER_URL = "http://192.168.2.202:8080/api/repairs/";
+    private static final String PENDING = "pending";
+    private static final int PENDING_INSERT = 1;
+    private static final int PENDING_UPDATE = 2;
+    private static final int PENDING_DELETE = 3;
 
     private static final String SQL_CREATE_REPAIRS =
             "CREATE TABLE " + TABLE_REPAIRS + "(" +
@@ -37,9 +45,11 @@ public class DbHelper extends SQLiteOpenHelper {
                     Repair.DESCRIPTION + " TEXT," +
                     PENDING + " INTEGER)";
 
+    private final RequestQueue requestQueue;
 
     public DbHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        requestQueue = Volley.newRequestQueue(context);
     }
 
     @Override
@@ -68,20 +78,6 @@ public class DbHelper extends SQLiteOpenHelper {
         }
     }
 
-    public Repair queryRepair(long id) {
-        Log.d(TAG, "DbHelper.queryRepair(" + id + ")");
-        try (SQLiteDatabase db = getReadableDatabase()) {
-            try (Cursor c = db.query(TABLE_REPAIRS, null,
-                    Repair.ID + "=" + id, null, null, null, null)) {
-                if (c.moveToFirst()) {
-                    return new Repair(c);
-                } else {
-                    throw new SQLiteException("Repair not found: " + id);
-                }
-            }
-        }
-    }
-
     public void insertOrUpdateRepair(Repair repair) {
         Log.d(TAG, "DbHelper.insertOrUpdateRepair(" + repair.getId() + ")");
         try (SQLiteDatabase db = getWritableDatabase()) {
@@ -91,6 +87,7 @@ public class DbHelper extends SQLiteOpenHelper {
                 values.put(PENDING, PENDING_INSERT);
                 repair.setId(db.insert(TABLE_REPAIRS, null, values));
                 Log.d(TAG, "Repair inserted: " + repair.getId());
+                requestInsert(repair);
             } else {
                 values.put(PENDING, PENDING_UPDATE);
                 if (db.update(TABLE_REPAIRS, values, repair.getWhereClause(), null) == 1) {
@@ -98,6 +95,7 @@ public class DbHelper extends SQLiteOpenHelper {
                 } else {
                     throw new SQLiteException("Repair not found: " + repair.getId());
                 }
+                requestUpdate(repair);
             }
         }
     }
@@ -107,16 +105,121 @@ public class DbHelper extends SQLiteOpenHelper {
         try (SQLiteDatabase db = getWritableDatabase()) {
             ContentValues values = new ContentValues();
             values.put(PENDING, PENDING_DELETE);
-
             if (db.update(TABLE_REPAIRS, values, repair.getWhereClause(), null) == 1) {
-                Log.d(TAG, "Repair scheduled for deletion: " + repair.getId());
+                Log.d(TAG, "Repair deleted: " + repair.getId());
             } else {
                 throw new SQLiteException("Repair not found: " + repair.getId());
             }
+            requestDelete(repair);
         }
     }
 
-    public void resetRepairPending(Repair repair) {
+    public void sync(Runnable callback) {
+        Log.d(TAG, "DbHelper.sync()");
+        try (SQLiteDatabase db = getReadableDatabase()) {
+            try (Cursor c = db.query(TABLE_REPAIRS, null, PENDING + " IS NOT NULL", null,
+                    null, null, null)) {
+                while (c.moveToNext()) {
+                    Repair repair = new Repair(c);
+                    switch (c.getInt(5)) {
+                        case PENDING_INSERT:
+                            requestInsert(repair);
+                            break;
+                        case PENDING_UPDATE:
+                            requestUpdate(repair);
+                            break;
+                        case PENDING_DELETE:
+                            requestDelete(repair);
+                            break;
+                    }
+                }
+            }
+
+            requestQueue.add(new JsonArrayRequest(SERVER_URL,
+                    new Response.Listener<JSONArray>() {
+
+                        @Override
+                        public void onResponse(JSONArray response) {
+                            Log.d(TAG, "onResponse: " + response);
+                            try {
+                                setRepairs(response);
+                                callback.run();
+                            } catch (Exception ex) {
+                                Log.e(TAG, "Error", ex);
+                            }
+                        }
+                    },
+                    new Response.ErrorListener() {
+
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            Log.e(TAG, "onErrorResponse", error);
+                        }
+                    }));
+        }
+    }
+
+    private void requestInsert(Repair repair) {
+        Log.d(TAG, "DbHelper.requestInsert(" + repair.getId() + ")");
+        requestQueue.add(new JsonObjectRequest(Request.Method.POST, SERVER_URL,
+                repair.getJsonObject(),
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d(TAG, "Insert response: " + response);
+                        resetRepairPending(repair);
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.e(TAG, "Insert error", error);
+                    }
+                }));
+        Log.d(TAG, "Insert request posted");
+    }
+
+    private void requestUpdate(Repair repair) {
+        Log.d(TAG, "DbHelper.requestUpdate(" + repair.getId() + ")");
+        requestQueue.add(new JsonObjectRequest(Request.Method.PUT,
+                SERVER_URL + repair.getId(), repair.getJsonObject(),
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d(TAG, "Update response: " + response);
+                        resetRepairPending(repair);
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.e(TAG, "Update error", error);
+                    }
+                }));
+        Log.d(TAG, "Update request posted");
+    }
+
+    private void requestDelete(Repair repair) {
+        Log.d(TAG, "DbHelper.requestDelete(" + repair.getId() + ")");
+        requestQueue.add(new JsonObjectRequest(Request.Method.DELETE,
+                SERVER_URL + repair.getId(), new JSONObject(),
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d(TAG, "Delete response: " + response);
+                        deleteRepair(repair);
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.e(TAG, "Delete error", error);
+                    }
+                }));
+        Log.d(TAG, "Delete request posted");
+    }
+
+    private void resetRepairPending(Repair repair) {
         Log.d(TAG, "DbHelper.setRepairPending(" + repair.getId() + ")");
         try (SQLiteDatabase db = getWritableDatabase()) {
             ContentValues values = new ContentValues();

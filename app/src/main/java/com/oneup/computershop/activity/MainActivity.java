@@ -2,7 +2,6 @@ package com.oneup.computershop.activity;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.ContextMenu;
 import android.view.MenuItem;
 import android.view.View;
@@ -15,28 +14,19 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.toolbox.Volley;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.oneup.computershop.R;
 import com.oneup.computershop.Util;
 import com.oneup.computershop.db.DbHelper;
 import com.oneup.computershop.db.Repair;
-import com.oneup.computershop.db.Server;
-
-import org.json.JSONArray;
 
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener,
         AdapterView.OnItemClickListener {
-    private static final String TAG = "ComputerShop";
-
     private static final int REQUEST_EDIT_REPAIR = 1;
 
-    private RequestQueue requestQueue;
-    private DbHelper dbHelper;
+    private DbHelper db;
     private ArrayList<Repair> repairs;
 
     private ListView lvRepairs;
@@ -49,8 +39,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        requestQueue = Volley.newRequestQueue(this);
-        dbHelper = new DbHelper(this);
+        db = new DbHelper(this);
 
         lvRepairs = findViewById(R.id.lvRepairs);
         lvRepairs.setOnItemClickListener(this);
@@ -59,19 +48,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         fabAddRepair = findViewById(R.id.fabAddRepair);
         fabAddRepair.setOnClickListener(this);
 
-        Server.get(this).getRepairs(new Response.Listener<JSONArray>() {
+        db.sync(new Runnable() {
 
             @Override
-            public void onResponse(JSONArray response) {
-                Log.d(TAG, "onResponse: " + response);
-                try {
-                    dbHelper.setRepairs(response);
-
-                    repairs = dbHelper.queryRepairs();
-                    repairAdapter.notifyDataSetChanged();
-                } catch (Exception ex) {
-                    Log.e(TAG, "Error", ex);
-                }
+            public void run() {
+                repairs = db.queryRepairs();
+                repairAdapter.notifyDataSetChanged();
             }
         });
     }
@@ -80,7 +62,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onResume() {
         super.onResume();
 
-        repairs = dbHelper.queryRepairs();
+        repairs = db.queryRepairs();
         if (repairAdapter == null) {
             repairAdapter = new RepairAdapter();
             lvRepairs.setAdapter(repairAdapter);
@@ -104,11 +86,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Repair repair = repairs.get(index);
 
         if (id == R.id.delete) {
-            dbHelper.deleteRepair(repair);
+            db.deleteRepair(repair);
             repairs.remove(index);
             repairAdapter.notifyDataSetChanged();
-
-            Server.get(this).deleteRepair(repair);
         } else {
             return super.onContextItemSelected(item);
         }

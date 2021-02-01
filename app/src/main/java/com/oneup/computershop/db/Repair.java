@@ -100,14 +100,18 @@ public class Repair implements Parcelable {
         return values;
     }
 
-    JSONObject getJsonObject() throws JSONException {
-        JSONObject json = new JSONObject();
-        json.put("ID", id);
-        json.put("StartDate", startDate);
-        json.put("EndDate", endDate);
-        json.put("Status", status);
-        json.put("Description", description);
-        return json;
+    JSONObject getJsonObject() {
+        try {
+            JSONObject json = new JSONObject();
+            json.put("ID", id);
+            json.put("StartDate", startDate);
+            json.put("EndDate", endDate);
+            json.put("Status", status);
+            json.put("Description", description);
+            return json;
+        } catch (JSONException ex) {
+            throw new RuntimeException("JSON error", ex);
+        }
     }
 
     String getWhereClause() {
